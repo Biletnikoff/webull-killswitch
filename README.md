@@ -91,6 +91,72 @@ This architecture ensures that:
 
 In practice, the only way to properly stop the system is through the `cleanup.sh` script, which includes multiple safeguards (confirmation prompts, countdown timers, and verification codes) to prevent impulsive deactivation of your protection. This ensures all components are properly terminated while preventing accidental shutdown of your protection system.
 
+## Utility Files
+
+The project includes various utility scripts for different aspects of system functionality:
+
+### Core Monitoring
+
+- `monitor_pnl.py`: Original monitoring script (legacy version)
+- `monitor_pnl_hardened.py`: Main monitoring script with enhanced hardening features
+- `kill_switch.py`: Core logic for triggering the kill action
+
+### Watchdog Components
+
+- `simple_watchdog.py`: Simplified watchdog for testing purposes
+- `production_watchdog.py`: Production watchdog with enhanced reliability features
+- `respawn_monitor.py`: Utility for restarting the monitor if it crashes
+
+### Authentication
+
+- `webull_auth.py`: Handles Webull API authentication
+- `generate_token.py`: Generates authentication tokens
+- `create_test_token.py`: Creates test tokens for development
+- `update_token.py`: Updates expired tokens
+- `test_token_refresh.py`: Tests the token refresh mechanism
+
+### Installation & Maintenance
+
+- `install_killswitch.sh`: Installs the kill switch system
+- `install_with_dependencies.sh`: Full installation including dependencies
+- `uninstall_killswitch.sh`: Removes the kill switch system
+- `cleanup.sh`: Safely terminates all system processes with safeguards
+- `make_unkillable.py`: Makes processes resistant to termination
+
+### System Tools
+
+- `check_status.py`: Checks system status and provides recommendations
+- `create_notifier.py`: Creates notification app bundle
+
+### AppleScripts
+
+- `killTradingApp.scpt`: Script that closes Webull
+- `getFuturesPnL.scpt`: Script for retrieving futures profit/loss data
+- `test_notification.scpt`: Tests the notification system
+
+### Testing Utilities
+
+- `basic_test.py`: Simple test harness
+- `simple_test.py`: Basic functionality testing
+- `super_simple_test.py`: Minimal test case
+- `simple_monitor_test.py`: Tests monitor functionality
+- `test_killswitch.py`: Tests kill switch triggering
+- `test_login.py`: Tests login functionality
+- `test_notifications.py`: Tests notification system
+- `test_real_api.py`: Tests real API integration
+- `test_sound.py`: Tests sound notification system
+- `test_terminal_notifier.py`: Tests terminal notifications
+- `test_balance.py`: Tests balance retrieval
+- `test.sh`: Main test script
+- `test_run.sh`: Runs a full test sequence
+
+### Debugging Tools
+
+- `debug.py`: General debugging utility
+- `debug_futures.py`: Futures-specific debugging
+- `echo.py`: Simple debugging output utility
+- `yfinance_test.py`: Tests Yahoo Finance integration as fallback
+
 ## Setup
 
 1. Clone this repository
