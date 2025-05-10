@@ -21,6 +21,76 @@ This automated system monitors your Webull account's profit/loss (P/L) and autom
 - `check_status.py`: Status checker for the monitoring system
 - `cleanup.sh`: Utility to terminate all processes and clean up
 
+## System Architecture & Fault Tolerance
+
+The Webull Kill Switch is designed with reliability and fault tolerance as core principles, using a two-process architecture to ensure continuous monitoring.
+
+### Monitor-Watchdog Relationship
+
+The system operates as a pair of processes with distinct responsibilities:
+
+1. **Monitor Process** (`monitor_pnl_hardened.py`):
+
+   - Primary responsibility: Monitors P/L and triggers the kill switch when threshold is reached
+   - Executes the actual trading app termination
+   - Includes self-protection mechanisms to prevent accidental termination
+   - Handles authentication token refresh and API communication
+
+2. **Watchdog Process** (`production_watchdog.py` or `simple_watchdog.py`):
+   - Primary responsibility: Ensures the monitor process is always running
+   - Regularly checks if the monitor is active and restarts it if necessary
+   - Acts as a "supervisor" for the entire system
+   - Provides a stable shell environment for the monitor
+
+### Fault Tolerance Mechanisms
+
+The system includes multiple layers of protection to ensure operation even under adverse conditions:
+
+#### 1. Unkillable Monitor Design
+
+The monitor process is designed to be resistant to accidental termination:
+
+- Uses signal handling to ignore standard termination signals (SIGTERM)
+- Requires forced termination (SIGKILL) to be stopped
+- Logs all unexpected termination attempts
+
+#### 2. Automatic Regeneration
+
+If the monitor process is forcibly terminated:
+
+- The watchdog detects the termination within seconds
+- Automatically respawns the monitor with identical parameters
+- Maintains the monitoring threshold and other settings
+- Logs the regeneration event for auditing
+
+#### 3. System Hardening
+
+Additional hardening features provide resilience:
+
+- Continues operation during temporary API failures
+- Caches authentication tokens to handle authentication server outages
+- Tolerates network interruptions with exponential backoff retry logic
+- Uses the filesystem to maintain state across restarts
+
+#### 4. Clean Recovery
+
+The `cleanup.sh` script provides a "nuclear option" to reset the system if needed:
+
+- Forcefully terminates all monitor and watchdog processes
+- Removes any lock files or stale state
+- Allows for a clean restart when necessary
+
+### Practical Implications
+
+This architecture ensures that:
+
+- The kill switch will continue to function even if someone attempts to stop it
+- System restarts or crashes are automatically recovered from
+- The threshold protection remains in place without human intervention
+- Any potential single points of failure are mitigated
+
+In practice, the only way to properly stop the system is through the `cleanup.sh` script, which ensures all components are properly terminated.
+
 ## Setup
 
 1. Clone this repository
