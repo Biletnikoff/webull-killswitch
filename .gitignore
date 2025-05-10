@@ -1,0 +1,58 @@
+# Sensitive data
+webull_token.json
+did.bin
+*.env
+account_data.json
+full_account_data.json
+orders_data.json
+futures_data_*.json
+*.pem
+*.key
+
+# Log files
+logs/
+*.log
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.venv
+venv/
+ENV/
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Generated watchdog script
+watchdog.py
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo 
