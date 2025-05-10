@@ -89,7 +89,7 @@ This architecture ensures that:
 - The threshold protection remains in place without human intervention
 - Any potential single points of failure are mitigated
 
-In practice, the only way to properly stop the system is through the `cleanup.sh` script, which ensures all components are properly terminated.
+In practice, the only way to properly stop the system is through the `cleanup.sh` script, which includes multiple safeguards (confirmation prompts, countdown timers, and verification codes) to prevent impulsive deactivation of your protection. This ensures all components are properly terminated while preventing accidental shutdown of your protection system.
 
 ## Setup
 
