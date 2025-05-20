@@ -12,21 +12,28 @@ import subprocess
 import signal
 from datetime import datetime
 
+# Get directory paths
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PARENT_DIR = os.path.dirname(SCRIPT_DIR)
+LOG_DIR = os.path.join(PARENT_DIR, "logs")
+
+# Ensure log directory exists
+os.makedirs(LOG_DIR, exist_ok=True)
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler(os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs", "respawn.log")),
+        logging.FileHandler(os.path.join(LOG_DIR, "respawn.log")),
         logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
 
 # Configuration
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-MONITOR_SCRIPT = os.path.join(SCRIPT_DIR, "monitor_pnl_hardened.py")
-WATCHDOG_SCRIPT = os.path.join(SCRIPT_DIR, "watchdog.py")
+MONITOR_SCRIPT = os.path.join(PARENT_DIR, "core_monitoring", "monitor_pnl_hardened.py")
+WATCHDOG_SCRIPT = os.path.join(SCRIPT_DIR, "simple_watchdog.py")
 CHECK_INTERVAL = 30  # seconds
 MAX_RESTARTS = 5  # Maximum number of consecutive restarts before giving up
 COOL_DOWN_PERIOD = 300  # seconds to wait after hitting max restarts
@@ -55,23 +62,26 @@ import logging
 import subprocess
 from datetime import datetime, timedelta
 
-# Configure logging
-log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
-os.makedirs(log_dir, exist_ok=True)
+# Get directory paths
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PARENT_DIR = os.path.dirname(SCRIPT_DIR)
+LOG_DIR = os.path.join(PARENT_DIR, "logs")
+
+# Ensure log directory exists
+os.makedirs(LOG_DIR, exist_ok=True)
 
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler(os.path.join(log_dir, "watchdog.log")),
+        logging.FileHandler(os.path.join(LOG_DIR, "watchdog.log")),
         logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
 
 # Configuration
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-MONITOR_SCRIPT = os.path.join(SCRIPT_DIR, "monitor_pnl_hardened.py")
+MONITOR_SCRIPT = os.path.join(PARENT_DIR, "core_monitoring", "monitor_pnl_hardened.py")
 CHECK_INTERVAL = 30  # seconds
 RESTART_COOLDOWN = 60  # seconds between restarts
 MAX_CONSECUTIVE_RESTARTS = 5

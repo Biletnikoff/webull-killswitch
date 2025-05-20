@@ -11,19 +11,24 @@ import time
 import logging
 import signal
 import atexit
-import make_unkillable
 import argparse
 from datetime import datetime, time as dt_time, timedelta
 import pytz
 import requests
 import json
 
-# Import our webull_auth module
-try:
-    from webull_auth import refresh_auth, get_auth_headers, WebullAuth
-    WEBULL_AUTH_AVAILABLE = True
-except ImportError:
-    WEBULL_AUTH_AVAILABLE = False
+# Add parent directory to path to allow imports from other modules
+script_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(script_dir)
+sys.path.append(parent_dir)
+
+# Import modules from other directories
+from installation_maintenance.make_unkillable import make_process_unkillable
+from authentication.webull_auth import refresh_auth, get_auth_headers, WebullAuth
+from core_monitoring.kill_switch import execute_kill_switch as execute_kill_action
+
+# Check if webull_auth module is available
+WEBULL_AUTH_AVAILABLE = True
 
 # Configuration - these can be moved to an env file
 PNL_THRESHOLD = -650  # Trigger kill switch when P/L drops below this value
@@ -62,9 +67,6 @@ logger.info(f"Python version: {sys.version}")
 print("\n" + "="*80)
 print("   WEBULL KILL SWITCH MONITOR STARTING   ".center(80, '*'))
 print("="*80 + "\n")
-
-# Make this process ignore termination signals
-make_unkillable.make_unkillable()
 
 # Add this global variable at the top of the file
 # Global variable to store command line arguments
@@ -121,33 +123,15 @@ def execute_kill_switch(current_pnl=None, current_balance=None):
         # Send notification
         send_notification("KILL SWITCH ACTIVATED", message)
         
-        # Get the path to the kill script
-        kill_script = os.path.join(script_dir, "killTradingApp.scpt")
-        if not os.path.exists(kill_script):
-            logger.error(f"Kill script not found at {kill_script}")
-            return False
+        # Use the imported kill switch function
+        result = execute_kill_action(current_pnl, current_balance)
         
-        # Execute the script
-        logger.info(f"Executing kill script: {kill_script}")
-        result = subprocess.run(
-            ["osascript", kill_script],
-            check=False,
-            capture_output=True,
-            text=True
-        )
-        
-        # Log the output
-        if result.stdout:
-            logger.info(f"Kill script output: {result.stdout}")
-        if result.stderr:
-            logger.error(f"Kill script error: {result.stderr}")
-        
-        if result.returncode == 0:
+        if result:
             logger.info("Kill switch executed successfully")
             send_notification("Kill Switch Success", "Webull applications have been terminated")
             return True
         else:
-            logger.error(f"Kill script failed with code {result.returncode}")
+            logger.error("Kill switch execution failed")
             send_notification("Kill Switch Error", "Failed to terminate Webull applications")
             return False
     except Exception as e:
@@ -294,6 +278,20 @@ def get_account_pnl():
                 else:
                     logger.warning(f"Could not find P/L in API response, falling back to simulation")
             else:
+                if response.status_code == 403:
+                    error_msg = f"Authentication failed with status 403. Token has expired or is invalid."
+                    logger.error(error_msg)
+                    
+                    # Send notification about token expiration - ALWAYS do this, don't silently fail
+                    send_notification(
+                        "Webull Auth Failed", 
+                        "Your authentication token has expired. Run update_token.py to generate a new one.", 
+                        True
+                    )
+                    
+                    # Write a clear error message to the log that the watchdog can detect
+                    logger.error("Token refresh failed with status 403")
+                
                 logger.warning(f"API call failed with status {response.status_code}, falling back to simulation")
         except Exception as e:
             logger.warning(f"Error using real API: {str(e)}, falling back to simulation")
@@ -409,6 +407,20 @@ def get_account_balance():
                 else:
                     logger.warning(f"Could not find capital data in API response, falling back to simulation")
             else:
+                if response.status_code == 403:
+                    error_msg = f"Authentication failed with status 403. Token has expired or is invalid."
+                    logger.error(error_msg)
+                    
+                    # Send notification about token expiration - ALWAYS do this, don't silently fail
+                    send_notification(
+                        "Webull Auth Failed", 
+                        "Your authentication token has expired. Run update_token.py to generate a new one.", 
+                        True
+                    )
+                    
+                    # Write a clear error message to the log that the watchdog can detect
+                    logger.error("Token refresh failed with status 403")
+                
                 logger.warning(f"API call failed with status {response.status_code}, falling back to simulation")
         except Exception as e:
             logger.warning(f"Error getting real balance: {str(e)}, falling back to simulation")
@@ -473,7 +485,7 @@ def get_account_balance():
 
 def respawn_if_killed():
     """Create a watchdog script to restart this process if it's killed."""
-    watchdog_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "watchdog.py")
+    watchdog_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "simple_watchdog.py")
     
     logging.debug(f"Using watchdog script at {watchdog_path}")
     
@@ -482,6 +494,20 @@ def respawn_if_killed():
         logging.warning(f"Watchdog script not found at {watchdog_path}")
         logging.info("Please create the watchdog.py file with proper content")
         return
+    
+    # Check if watchdog is already running
+    try:
+        result = subprocess.run(
+            ["pgrep", "-f", "simple_watchdog.py"],
+            capture_output=True,
+            text=True
+        )
+        if result.stdout.strip():
+            watchdog_pid = result.stdout.strip()
+            logging.info(f"Watchdog already running with PID {watchdog_pid}, not starting another instance")
+            return
+    except Exception as e:
+        logging.error(f"Error checking for existing watchdog: {e}")
     
     # Make the script executable if it exists
     try:
@@ -504,6 +530,14 @@ def respawn_if_killed():
 def cleanup():
     """Function to run when the script exits (which should be very difficult)"""
     logger.warning("Monitor script is exiting - this should not happen!")
+    
+    # Try to gracefully terminate any associated watchdog processes
+    try:
+        subprocess.run(["pkill", "-f", "simple_watchdog.py"], check=False)
+        logger.info("Attempted to terminate associated watchdog processes")
+    except Exception as e:
+        logger.error(f"Failed to terminate watchdog processes: {e}")
+    
     send_notification("Monitor Warning", "Webull Monitor has been terminated!", True)
 
 def is_market_hours():
@@ -675,6 +709,23 @@ def load_env_config():
         logger.warning(".env file not found, using defaults")
         return {}
 
+def setup_signal_handlers():
+    """Set up signal handlers for graceful termination"""
+    def signal_handler(sig, frame):
+        logger.info(f"Received signal {sig}, shutting down gracefully")
+        cleanup()
+        sys.exit(0)
+    
+    # Register common termination signals
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGHUP, signal_handler)
+    
+    # Register cleanup to run on normal exit too
+    atexit.register(cleanup)
+    
+    logger.debug("Signal handlers registered for graceful shutdown")
+
 def main():
     """Main function"""
     global global_args
@@ -692,6 +743,13 @@ def main():
     
     # Load configuration from .env file
     env_config = load_env_config()
+    
+    # Make this process ignore termination signals, but only when not in test mode
+    if not global_args.test:
+        logger.info("Making process ignore termination signals for production mode")
+        make_unkillable.make_unkillable()
+    else:
+        logger.info("Test mode: Not making process unkillable for easier debugging")
     
     # Update configuration from environment if not provided in command line
     if global_args.threshold is None:
@@ -889,8 +947,24 @@ def main():
                     print("Test mode: sleeping for 5 seconds instead of waiting for market hours")
                     time.sleep(5)
                 else:
-                    # Wait until market opens
-                    time.sleep(sleep_time)
+                    # Wait until market opens (with check every 30 minutes for improved notifications)
+                    remaining_sleep = sleep_time
+                    while remaining_sleep > 0:
+                        sleep_chunk = min(1800, remaining_sleep)  # 30 minutes or less if less than 30 minutes left
+                        time.sleep(sleep_chunk)
+                        remaining_sleep -= sleep_chunk
+                        
+                        # Send notification when 15 minutes or less remaining before market opens
+                        if 0 < remaining_sleep <= 900:  # 15 minutes
+                            start_time = datetime.now() + timedelta(seconds=remaining_sleep)
+                            send_notification("Webull Market Opening Soon", 
+                                           f"Market opens in {remaining_sleep // 60} minutes at {start_time.strftime('%H:%M')}.",
+                                           sound=True)
+                    
+                    # Send notification when market opens
+                    send_notification("Webull Monitor Active", 
+                                   "Market is now open. Monitoring has resumed.",
+                                   sound=True)
                     
         except Exception as e:
             logger.error(f"Error in main loop: {e}")
@@ -899,4 +973,5 @@ def main():
             time.sleep(CHECK_INTERVAL)
 
 if __name__ == "__main__":
+    setup_signal_handlers()
     main() 

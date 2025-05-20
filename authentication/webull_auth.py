@@ -11,6 +11,7 @@ import requests
 from datetime import datetime, timedelta
 import re
 from pathlib import Path
+import sys
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -28,8 +29,14 @@ class WebullAuth:
         """Initialize the WebullAuth instance"""
         self.logger = logging.getLogger(__name__)
         self.test_mode = False
-        self.token_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "webull_token.json")
-        self.did_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "did.bin")
+        
+        # Get directory paths
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        parent_dir = os.path.dirname(script_dir)
+        
+        # Files are still in root directory by default
+        self.token_file = os.path.join(parent_dir, "webull_token.json")
+        self.did_file = os.path.join(parent_dir, "did.bin")
         self.refresh_token_url = "https://userapi.webull.com/api/passport/refreshToken"
         
         # Load token data from file
@@ -289,95 +296,77 @@ class WebullAuth:
         }
     
     def refresh_auth_token(self):
-        """Refresh the authentication token using the refresh token"""
-        if self.test_mode:
-            self.logger.info("Refreshing access token")
-            # In test mode, simulate a successful token refresh
-            try:
-                # Attempt refresh but don't fail on error in test mode
-                self._refresh_token_api_call()
-            except Exception as e:
-                self.logger.error(f"Token refresh failed: {str(e)}")
-                self.logger.info("Test mode active: Simulating successful refresh despite API error")
-                
-            # Generate a simple test token
-            test_token = f"test_refreshed_token_{int(time.time())}"
-            
-            # Update token data with test values
-            self.token_data["access_token"] = test_token
-            self.token_data["token_expiry"] = (datetime.now() + timedelta(hours=24)).isoformat()
-            self.token_data["last_updated"] = datetime.now().isoformat()
-            
-            # Save the updated token data to file
-            self._save_token_to_file()
-            return True
-            
-        try:
-            return self._refresh_token_api_call()
-        except Exception as e:
-            self.logger.error(f"Failed to refresh token: {str(e)}")
+        """Refresh authentication token using the refresh token"""
+        self.logger.info("Making refresh token API call")
+        
+        if not self.token_data or not self.token_data.get('refresh_token'):
+            self.logger.error("No refresh token available")
             return False
-    
-    def _refresh_token_api_call(self):
-        """Make the API call to refresh the token"""
+            
+        refresh_token = self.token_data.get('refresh_token')
+        device_id = self.token_data.get('device_id', 'z7e2nia9wl6g9qmrwqwqp8eraogg7khi')
+        
+        # API endpoint for refreshing token
+        url = "https://userapi.webull.com/api/passport/refreshToken"
+        
+        # Request data
+        data = {
+            "refreshToken": refresh_token,
+            "deviceId": device_id
+        }
+        
+        # Simplified headers for refresh token request
+        headers = {
+            "Accept": "*/*",
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko)",
+            "Origin": "https://www.webull.com",
+            "Referer": "https://www.webull.com/",
+        }
+        
         try:
-            headers = {
-                'Content-Type': 'application/json'
-            }
-            
-            # Add any headers needed for the refresh token call
-            if "api_headers" in self.token_data:
-                for key in ["accept", "accept-language", "app", "app-group", "appid", 
-                         "device-type", "did", "hl", "lzone", "origin", "os", 
-                         "osv", "platform", "referer", "user-agent", "ver"]:
-                    if key in self.token_data["api_headers"]:
-                        headers[key] = self.token_data["api_headers"][key]
-            
-            data = {
-                'refreshToken': self.refresh_token,
-                'deviceId': self.device_id
-            }
-            
-            self.logger.info("Making refresh token API call")
-            response = requests.post(self.refresh_token_url, headers=headers, json=data)
+            response = requests.post(url, json=data, headers=headers)
             
             if response.status_code == 200:
-                try:
-                    result = response.json()
-                    self.logger.debug(f"Refresh API response: {result}")
+                # Parse response JSON
+                response_data = response.json()
+                
+                # Extract the new tokens
+                if 'accessToken' in response_data:
+                    # Update token data
+                    self.token_data['access_token'] = response_data['accessToken']
+                    self.token_data['refresh_token'] = response_data.get('refreshToken', refresh_token)
+                    self.token_data['token_expiry'] = self._calculate_expiry()
+                    self.token_data['last_updated'] = datetime.now().isoformat()
                     
-                    if 'accessToken' in result:
-                        self.access_token = result['accessToken']
-                        
-                        # Update refresh token if provided
-                        if 'refreshToken' in result:
-                            self.refresh_token = result['refreshToken']
-                        
-                        # Set token expiry (typically 24 hours from now)
-                        self.token_expiry = (datetime.now() + timedelta(hours=24)).isoformat()
-                        
-                        # Update token data
-                        self.token_data["access_token"] = self.access_token
-                        self.token_data["refresh_token"] = self.refresh_token
-                        self.token_data["token_expiry"] = self.token_expiry
-                        self.token_data["last_updated"] = datetime.now().isoformat()
-                        
-                        # Save updated tokens
-                        self._save_token_to_file()
-                        
-                        self.logger.info("Token refreshed successfully")
-                        return True
-                    else:
-                        self.logger.error("Refresh response missing access token")
-                        return False
-                except Exception as e:
-                    self.logger.error(f"Error parsing refresh response: {str(e)}")
+                    # Save updated tokens to file
+                    self._save_token_data()
+                    
+                    self.logger.info("Authentication token refreshed successfully")
+                    return True
+                else:
+                    self.logger.error(f"Invalid response from refresh API: {response_data}")
                     return False
             else:
                 self.logger.error(f"Token refresh failed with status {response.status_code}: {response.text}")
+                
+                # Send a system notification if possible
+                try:
+                    if sys.platform == 'darwin':
+                        import subprocess
+                        subprocess.run([
+                            "terminal-notifier",
+                            "-title", "Webull Authentication Failed",
+                            "-message", "Your token has expired. Please run update_token.py to refresh it.",
+                            "-sound", "Basso"
+                        ], check=False)
+                except Exception as e:
+                    self.logger.warning(f"Could not send notification: {e}")
+                
                 return False
+                
         except Exception as e:
-            self.logger.error(f"Exception during token refresh: {str(e)}")
+            self.logger.error(f"Error refreshing authentication token: {e}")
             return False
 
     def extract_token_from_webull(self):

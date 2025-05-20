@@ -16,7 +16,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def make_unkillable():
+def make_process_unkillable():
     """Configure the process to ignore common termination signals"""
     try:
         # Ignore SIGINT (Ctrl+C)
@@ -51,10 +51,14 @@ def setup_log_file(log_path):
         logger.error(f"Failed to set up log file: {e}")
         return False
 
+def make_unkillable():
+    """Alias for backward compatibility"""
+    return make_process_unkillable()
+
 if __name__ == "__main__":
     # If run directly, just print information
     print("This is a utility module to make Python processes harder to kill.")
     print("Import this in your main script like this:")
-    print("\nimport make_unkillable")
-    print("make_unkillable.make_unkillable()")
+    print("\nfrom installation_maintenance.make_unkillable import make_process_unkillable")
+    print("make_process_unkillable()")
     print("\nNote: This will not protect against SIGKILL (kill -9).") 

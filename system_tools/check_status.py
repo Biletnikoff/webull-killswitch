@@ -13,11 +13,15 @@ from datetime import datetime
 
 # Constants
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+# If this is in system_tools, we need to go up one directory
+if os.path.basename(SCRIPT_DIR) == "system_tools":
+    SCRIPT_DIR = os.path.dirname(SCRIPT_DIR)
 MONITOR_SCRIPT = "monitor_pnl_hardened.py"
 WATCHDOG_SCRIPT_NAMES = ["watchdog.py", "simple_watchdog.py", "production_watchdog.py"]
 LAUNCHD_PLIST = "com.webull.killswitch.plist"
+WATCHDOG_DIR = os.path.join(SCRIPT_DIR, "watchdog_components")
 LOG_FILE = os.path.join(SCRIPT_DIR, "logs", "monitor_hardened.log")
-WATCHDOG_FILE = os.path.join(SCRIPT_DIR, "watchdog.py")
+WATCHDOG_FILE = os.path.join(WATCHDOG_DIR, "simple_watchdog.py")
 LAUNCHD_PATH = os.path.expanduser("~/Library/LaunchAgents/" + LAUNCHD_PLIST)
 LOCAL_PLIST_PATH = os.path.join(SCRIPT_DIR, LAUNCHD_PLIST)
 
@@ -69,7 +73,9 @@ def check_monitor_process():
             # Get command details
             cmd_details, _ = run_command(["ps", "-p", pid, "-o", "command"])
             if cmd_details:
-                print(f"   Details: {cmd_details.split('\n')[1] if len(cmd_details.split('\n')) > 1 else ''}")
+                details = cmd_details.split('\n')
+                detail_text = details[1] if len(details) > 1 else ''
+                print(f"   Details: {detail_text}")
         return True
     else:
         print(f"{RED}❌ Kill switch monitoring process is NOT RUNNING{RESET}")
@@ -92,7 +98,9 @@ def check_watchdog_process():
             # Get command details
             cmd_details, _ = run_command(["ps", "-p", pid, "-o", "command"])
             if cmd_details:
-                print(f"   Details: {cmd_details.split('\n')[1] if len(cmd_details.split('\n')) > 1 else ''}")
+                details = cmd_details.split('\n')
+                detail_text = details[1] if len(details) > 1 else ''
+                print(f"   Details: {detail_text}")
         return True
     else:
         print(f"{RED}❌ Watchdog process is NOT RUNNING{RESET}")
@@ -140,10 +148,28 @@ def check_watchdog_file():
     watchdog_exists = False
     found_watchdogs = []
     
+    # First check in watchdog_components directory
+    watchdog_dir = os.path.join(SCRIPT_DIR, "watchdog_components")
+    for watchdog_name in WATCHDOG_SCRIPT_NAMES:
+        watchdog_path = os.path.join(watchdog_dir, watchdog_name)
+        if os.path.exists(watchdog_path):
+            print(f"{GREEN}✅ Watchdog file exists: watchdog_components/{watchdog_name}{RESET}")
+            
+            # Check if file is executable
+            if os.access(watchdog_path, os.X_OK):
+                print(f"{GREEN}✅ Watchdog file is executable{RESET}")
+            else:
+                print(f"{YELLOW}⚠️ Watchdog file is not executable{RESET}")
+            
+            watchdog_exists = True
+            found_watchdogs.append(watchdog_name)
+    
+    # For backward compatibility, also check in root directory
     for watchdog_name in WATCHDOG_SCRIPT_NAMES:
         watchdog_path = os.path.join(SCRIPT_DIR, watchdog_name)
-        if os.path.exists(watchdog_path):
-            print(f"{GREEN}✅ Watchdog file exists: {watchdog_name}{RESET}")
+        if os.path.exists(watchdog_path) and watchdog_name not in found_watchdogs:
+            print(f"{YELLOW}⚠️ Found legacy watchdog file in root directory: {watchdog_name}{RESET}")
+            print(f"{YELLOW}⚠️ Consider moving it to the watchdog_components directory{RESET}")
             
             # Check if file is executable
             if os.access(watchdog_path, os.X_OK):
@@ -173,11 +199,11 @@ def print_summary(monitor_status, watchdog_status, launch_agent_status, log_file
     
     print("\nRecommended actions:")
     if not monitor_status and not watchdog_status:
-        print(f"- Start the monitor process: {BOLD}python3 respawn_monitor.py{RESET}")
+        print(f"- Start the monitor process: {BOLD}python3 watchdog_components/respawn_monitor.py --test{RESET}")
     elif not monitor_status:
-        print(f"- Monitor not running. Start it with: {BOLD}python3 monitor_pnl_hardened.py{RESET}")
+        print(f"- Monitor not running. Start it with: {BOLD}python3 core_monitoring/monitor_pnl_hardened.py --test{RESET}")
     elif not watchdog_status:
-        print(f"- Watchdog not running. Start it with: {BOLD}python3 respawn_monitor.py{RESET}")
+        print(f"- Watchdog not running. Start it with: {BOLD}python3 watchdog_components/respawn_monitor.py --test{RESET}")
     elif not watchdog_file_status:
         using_alternate = False
         for name in WATCHDOG_SCRIPT_NAMES:
@@ -187,7 +213,7 @@ def print_summary(monitor_status, watchdog_status, launch_agent_status, log_file
                 break
         
         if not using_alternate:
-            print(f"- Watchdog file is invalid. Run: {BOLD}python3 respawn_monitor.py{RESET}")
+            print(f"- Watchdog file is invalid. Run: {BOLD}python3 watchdog_components/respawn_monitor.py --test{RESET}")
     else:
         print(f"- All systems operational! No action needed.")
 

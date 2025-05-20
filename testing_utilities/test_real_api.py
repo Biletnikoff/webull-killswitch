@@ -6,10 +6,15 @@ import json
 import requests
 import os
 import time
+import sys
 
 def main():
-    # Load token from file
-    token_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "webull_token.json")
+    # Add parent directory to path
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(script_dir)
+    
+    # Load token from file in project root
+    token_file = os.path.join(parent_dir, "webull_token.json")
     
     with open(token_file, 'r') as f:
         token_data = json.load(f)

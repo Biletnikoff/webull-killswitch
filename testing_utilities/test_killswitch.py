@@ -1,9 +1,25 @@
 #!/usr/bin/env python3
+"""
+Test script for kill switch functionality
+"""
 import os
 import time
 import subprocess
 import logging
 from dotenv import load_dotenv
+import sys
+
+# Add parent directory to path
+script_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(script_dir)
+sys.path.append(parent_dir)
+
+# Try to import from core_monitoring
+try:
+    from core_monitoring.kill_switch import execute_kill_switch
+    DIRECT_IMPORT = True
+except ImportError:
+    DIRECT_IMPORT = False
 
 # Set up logging
 logging.basicConfig(
@@ -31,27 +47,49 @@ def get_env_value(key, default, convert_func=str):
 THRESHOLD = get_env_value('PNL_THRESHOLD', '-500', float)
 THRESHOLD_TYPE = get_env_value('THRESHOLD_TYPE', 'DOLLAR', str).upper()
 CHECK_INTERVAL = get_env_value('CHECK_INTERVAL', '60', int)
-SCRIPT_PATH = os.path.expanduser(get_env_value('KILL_SCRIPT_PATH', 'killTradingApp.scpt', str))
-SCRIPT_PATH = os.path.abspath(SCRIPT_PATH)  # Normalize path
+
+# Find the kill script in the new directory structure
+SCRIPT_PATH = os.path.join(parent_dir, 'applescripts', 'killTradingApp.scpt')
 
 # Ensure the kill script exists
 if not os.path.exists(SCRIPT_PATH):
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    SCRIPT_PATH = os.path.join(current_dir, 'killTradingApp.scpt')
-    if not os.path.exists(SCRIPT_PATH):
-        raise FileNotFoundError(f"Kill script not found at {SCRIPT_PATH}")
+    # Try alternative locations
+    alternative_paths = [
+        os.path.join(parent_dir, 'killTradingApp.scpt'),  # Root directory (old location)
+        os.path.join(script_dir, 'killTradingApp.scpt'),  # In the testing directory
+    ]
+    
+    for path in alternative_paths:
+        if os.path.exists(path):
+            SCRIPT_PATH = path
+            break
+    else:
+        raise FileNotFoundError(f"Kill script not found at {SCRIPT_PATH} or alternative locations")
+
+logger.info(f"Using kill script at: {SCRIPT_PATH}")
 
 def trigger_kill():
-    """Execute the AppleScript to close Webull and related Safari tabs"""
+    """Execute the kill switch to close Webull"""
     try:
-        logger.info(f"Executing kill script: {SCRIPT_PATH}")
-        result = subprocess.run(['osascript', SCRIPT_PATH], 
-                               capture_output=True, text=True, check=True)
-        logger.info(f"Kill script executed: {result.stdout}")
-        return True
-    except subprocess.CalledProcessError as e:
+        if DIRECT_IMPORT:
+            # Use the imported function if available
+            logger.info("Using direct import of execute_kill_switch")
+            result = execute_kill_switch(-1000.0, 10000.0)  # Pass test values
+            if result:
+                logger.info("Kill switch executed successfully via direct import")
+                return True
+            else:
+                logger.error("Kill switch execution failed via direct import")
+                return False
+        else:
+            # Fall back to direct AppleScript execution
+            logger.info(f"Executing kill script directly: {SCRIPT_PATH}")
+            result = subprocess.run(['osascript', SCRIPT_PATH], 
+                                  capture_output=True, text=True, check=True)
+            logger.info(f"Kill script executed: {result.stdout}")
+            return True
+    except Exception as e:
         logger.error(f"Error executing kill script: {e}")
-        logger.error(f"Script output: {e.stderr}")
         return False
 
 def simulate_pnl_decline():

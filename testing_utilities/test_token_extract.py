@@ -8,7 +8,14 @@ import os
 import sys
 import logging
 import argparse
-from webull_auth import WebullAuth
+
+# Add parent directory to path
+script_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(script_dir)
+sys.path.append(parent_dir)
+
+# Import from new directory structure
+from authentication.webull_auth import WebullAuth
 
 # Configure logging
 logging.basicConfig(

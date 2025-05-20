@@ -7,7 +7,7 @@
     <key>ProgramArguments</key>
     <array>
         <string>/usr/bin/python3</string>
-        <string>/Users/bo/webull-killswitch/monitor_pnl_hardened.py</string>
+        <string>/Users/bo/webull-killswitch/watchdog_components/respawn_monitor.py</string>
     </array>
     <key>RunAtLoad</key>
     <true/>

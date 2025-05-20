@@ -6,7 +6,15 @@ import os
 import sys
 import logging
 import json
-from monitor_pnl_hardened import get_account_balance, get_account_pnl, WebullAuth
+
+# Add parent directory to path
+script_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(script_dir)
+sys.path.append(parent_dir)
+
+# Import from new directory structure
+from core_monitoring.monitor_pnl_hardened import get_account_balance, get_account_pnl
+from authentication.webull_auth import WebullAuth
 
 # Configure logging to console
 logging.basicConfig(
@@ -33,7 +41,7 @@ def main():
     print("\n=== Webull Account Information Test ===\n")
     
     # Set up mock args for the monitor functions
-    import monitor_pnl_hardened
+    import core_monitoring.monitor_pnl_hardened as monitor_pnl_hardened
     monitor_pnl_hardened.global_args = Args()
     
     # Get the account balance
